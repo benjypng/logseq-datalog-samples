@@ -1,0 +1,84 @@
+:default-queries
+ {:journals
+  [{:title "🔥 OVERDUE"
+    :query [:find (pull ?h [*])
+            :in $ ?now
+            :where
+            [?h :block/marker ?marker]
+            [(contains? #{"NOW" "DOING" "TODO" "LATER"} ?marker)]
+            (or [?h :block/scheduled ?d]
+                [?h :block/deadline ?d])
+            [(< ?d ?now)]]
+    :inputs [:today]
+    :collapsed? false}
+   
+   {:title "☝️ NOW"
+    :query [:find (pull ?h [*])
+            :in $ ?tagname
+            :where
+            [?h :block/marker ?marker]
+            [(contains? #{"NOW" "DOING"} ?marker)]
+            [?h :block/page ?p]
+            ; ensure that it's in a journal or it's a #task
+            (or-join [?h ?p ?tagname]
+                [?p :block/journal? true]
+                (and [?h :block/ref-pages ?t]
+                     [?t :block/name ?tagname]))]
+    :inputs ["task"]
+    :collapsed? false}
+
+   {:title "📅 DEADLINES"
+    :query [:find (pull ?h [*])
+            :in $ ?now ?later
+            :where
+            [?h :block/deadline ?d]
+            (not [?h :block/marker ?marker]
+                 [(contains? #{"NOW" "DOING" "DONE"} ?marker)])
+            [(> ?d ?now)]
+            [(<= ?d ?later)]]
+    :inputs [:today :14d-after]
+    :collapsed? false}
+
+   {:title "🏝️ EVENTS"
+    :query [:find (pull ?h [*])
+            :in $ ?now ?later
+            :where
+            [?h :block/scheduled ?d]
+            (not [?h :block/marker ?marker]
+                 [(contains? #{"NOW" "DOING" "DONE"} ?marker)])
+            [(> ?d ?now)]
+            [(<= ?d ?later)]]
+    :inputs [:today :14d-after]
+    :collapsed? false}
+
+    {:title "🧳 REMINDERS"
+    :query [:find (pull ?h [*])
+            :where
+            [?h :block/ref-pages ?q]
+            [?q :block/name ?name]]
+    :inputs ["reminder"]
+    :collapsed? false}
+
+   {:title "👀 LATER"
+    :query [:find (pull ?h [*])
+            :in $ ?tagname ?later
+            :where
+            [?h :block/marker ?marker]
+            [(contains? #{"TODO" "LATER"} ?marker)]
+            [?h :block/page ?p]
+            ; the difference between scheduled and deadline is that a deadlined thing
+            ; can get done in advance. hence, only deadlined things belong here
+            (not [?h :block/scheduled _])
+            ; if there's a deadline, it's late enough to not be in UPCOMING yet
+            (or-join [?h ?later]
+                     (not [?h :block/deadline _])
+                     (and [?h :block/deadline ?d]
+                          [(> ?d ?later)]))
+            ; ensure that it's in a journal or it's a #task
+            (or-join [?h ?p ?tagname]
+                [?p :block/journal? true]
+                (and [?h :block/ref-pages ?t]
+                     [?t :block/name ?tagname]))]
+    :inputs ["task" :14d-after]
+    :collapsed? false}
+]}
